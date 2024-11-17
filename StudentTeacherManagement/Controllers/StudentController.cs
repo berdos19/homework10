@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using StudentTeacherManagement.Core.Interfaces;
 using StudentTeacherManagement.Core.Models;
@@ -21,6 +22,7 @@ public class StudentController : ControllerBase
 
     [HttpPost]
     [LogFilter]
+    [Authorize(Roles = "Teacher")]
     public async Task<ActionResult<StudentDTO>> AddStudent([FromBody] CreateStudentDTO createStudentDto)
     {
         //var studentToAdd = _mapper.Map<Student>(createStudentDto);

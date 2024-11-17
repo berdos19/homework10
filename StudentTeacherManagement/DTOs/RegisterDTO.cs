@@ -1,4 +1,6 @@
-﻿namespace StudentTeacherManagement.DTOs;
+﻿using StudentTeacherManagement.Core.Models;
+
+namespace StudentTeacherManagement.DTOs;
 
 public class RegisterDTO
 {
@@ -8,4 +10,5 @@ public class RegisterDTO
 
     public string Email { get; set; }
     public string Password { get; set; }
+    public UserRole Role { get; set; }
 }

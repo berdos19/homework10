@@ -11,4 +11,12 @@ public abstract class User
     
     public DateTime CreatedAt { get; set; }
     public DateTime? DeletedAt { get; set; }
+
+    public UserRole Role { get; set; }
+}
+
+public enum UserRole
+{
+    Student,
+    Teacher
 }

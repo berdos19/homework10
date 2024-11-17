@@ -17,7 +17,11 @@ public class AuthService : IAuthService
     private const int MinCodeValue = 100_000;
     private const int MaxCodeValue = 1_000_000;
     private static TimeSpan MaxVerificationTime => TimeSpan.FromMinutes(10);
-    
+
+    private static TimeSpan MaxRecoveryCodeLifeSpan = TimeSpan.FromMinutes(15);
+
+    private static readonly Dictionary<int, CodeInfo> _recoveryCodes = new();
+
     private readonly DataContext _context;
     private readonly IEmailSender _emailSender;
     private IConfiguration _configuration;
@@ -31,7 +35,7 @@ public class AuthService : IAuthService
         _configuration = configuration;
     }
 
-    public Task Register(User user)
+    public Task Register(User user, UserRole role)
     {
         // validation
         ValidateUser(user);
@@ -39,6 +43,7 @@ public class AuthService : IAuthService
         // generate code
         var code = new Random().Next(MinCodeValue, MaxCodeValue);
         user.CreatedAt = DateTime.UtcNow;
+        user.Role = role;
         _unverifiedUsers.Add(code, user);
         
         // send to email
@@ -109,7 +114,8 @@ public class AuthService : IAuthService
     {
         var claims = new List<Claim>
         {
-            new(ClaimTypes.Role, nameof(Student)),
+            new(ClaimTypes.Role, user.Role.ToString()),
+            new(ClaimTypes.NameIdentifier, user.Id.ToString())
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
@@ -126,5 +132,43 @@ public class AuthService : IAuthService
         var jwt = new JwtSecurityTokenHandler().WriteToken(token);
 
         return jwt;
+    }
+
+    public async Task SendRecoveryCode(Guid id)
+    {
+        if (!await _context.Students.AnyAsync(s => s.Id == id))
+        {
+            throw new KeyNotFoundException(nameof(id));
+        }
+
+        var code = new Random().Next(MinCodeValue, MaxCodeValue);
+
+        _recoveryCodes.Add(code, new CodeInfo
+        {
+            UserId = id,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _emailSender.Send($"Your code: " + code);
+    }
+
+    public async Task SetNewPassword(Guid id, int code, string newPassword)
+    {
+        if (_recoveryCodes.TryGetValue(code, out var recoveryData))
+        {
+            if (recoveryData.UserId == id && (DateTime.UtcNow - recoveryData.CreatedAt) < MaxRecoveryCodeLifeSpan)
+            {
+                var student = await _context.Students.FindAsync(id);
+
+                if (student is not null)
+                {
+                    student.Password = newPassword;
+                    await _context.SaveChangesAsync();
+                    return;
+                }
+            }
+        }
+
+        throw new ArgumentException("Incoming code is incorrect");
     }
 }
